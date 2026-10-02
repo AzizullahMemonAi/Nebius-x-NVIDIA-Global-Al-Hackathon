@@ -1,4 +1,4 @@
-# Secure Coding Agent
+# Nexora Secure Coding Agent
 
 This repository contains the Secure Coding Agent project structure for the Nebius x NVIDIA Global AI Hackathon.
 
