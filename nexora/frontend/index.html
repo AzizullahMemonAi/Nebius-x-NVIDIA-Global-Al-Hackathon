@@ -1,0 +1,276 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Nexora — secure, token-efficient adaptive coding agent">
+  <title>Nexora</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 3 29 16 16 29 3 16Z' fill='%2300d4ff'/%3E%3Cpath d='M16 9l7 7-7 7-7-7Z' fill='%23ffd700'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles/odysseus.css?v=5">
+  <link rel="stylesheet" href="/styles/theme-neon-gold.css?v=5">
+</head>
+<body>
+
+  <!-- ============================================================ boot -->
+  <div id="app-loader">
+    <div class="loader-mark">NEXO<span class="gold">RA</span></div>
+    <div class="loader-bar"><i></i></div>
+  </div>
+
+  <!-- ============================================================ icon rail -->
+  <div class="icon-rail" id="icon-rail" role="navigation" aria-label="Tool rail">
+    <div class="rail-resize-handle" id="rail-resize-handle" aria-hidden="true"></div>
+
+    <button class="icon-rail-btn rail-new-chat" id="rail-new-run" title="New run">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="rail-hover-label">New run</span>
+    </button>
+
+    <button class="icon-rail-btn" data-tool="runs" title="Runs">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+      <span class="rail-hover-label">Runs</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="plan" title="Plan">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span class="rail-hover-label">Execution plan</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="policy" title="Policy feed">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span class="rail-hover-label">Policy decisions</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="security" title="Security review">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span class="rail-hover-label">Security review</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="evidence" title="Evidence">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>
+      <span class="rail-hover-label">Evidence &amp; metrics</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="patch" title="Patch diff">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><circle cx="12" cy="19" r="2.5"/><path d="M19 5l-7 7"/><circle cx="19" cy="5" r="2"/></svg>
+      <span class="rail-hover-label">Patch diff</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="tests" title="Validation">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v6L5 19a2 2 0 0 0 1.7 3h10.6A2 2 0 0 0 19 19l-5-10V3"/></><path d="M7.5 14h9"/></svg>
+      <span class="rail-hover-label">Validation</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="approvals" title="Approvals">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span class="rail-hover-label">Approvals</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="audit" title="Audit trail">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+      <span class="rail-hover-label">Audit trail</span>
+    </button>
+
+    <div class="rail-separator"></div>
+    <div class="rail-spacer"></div>
+    <div class="rail-separator"></div>
+
+    <button class="icon-rail-btn" data-tool="theme" title="Theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+      <span class="rail-hover-label">Theme</span>
+    </button>
+    <button class="icon-rail-btn" data-tool="settings" title="Settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H7a1.6 1.6 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V7a1.6 1.6 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+      <span class="rail-hover-label">Settings</span>
+    </button>
+  </div>
+
+  <button class="hamburger-btn" id="hamburger-btn" title="Toggle sidebar (Ctrl+B)" aria-label="Toggle sidebar">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+
+  <!-- ============================================================ sidebar -->
+  <nav class="sidebar" id="sidebar" aria-label="Sidebar">
+    <div class="sidebar-resize-handle" id="sidebar-resize-handle" aria-hidden="true"></div>
+
+    <div class="sidebar-header">
+      <div class="sidebar-brand" id="sidebar-brand" title="New run">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <defs>
+            <linearGradient id="nxG" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="var(--accent)"/>
+              <stop offset="100%" stop-color="var(--gold)"/>
+            </linearGradient>
+          </defs>
+          <path d="M16 2 30 16 16 30 2 16Z" fill="url(#nxG)" opacity="0.95"/>
+          <path d="M16 8.5 23.5 16 16 23.5 8.5 16Z" fill="var(--bg)" opacity="0.9"/>
+          <path d="M16 11.5 20.5 16 16 20.5 11.5 16Z" fill="var(--gold)"/>
+        </svg>
+        <span class="sidebar-brand-title">Nex<span class="gold">ora</span></span>
+      </div>
+      <button class="btn-icon" id="btn-collapse-sidebar" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+
+    <div class="sidebar-body">
+      <div class="sidebar-section">
+        <div class="section-label">
+          <span>Workspaces</span>
+          <span class="count" id="ws-count">0</span>
+        </div>
+        <div id="nav-workspaces" role="listbox" aria-label="Workspaces"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-label">
+          <span>Sample tasks</span>
+        </div>
+        <button class="list-item sample-task" data-sample="calculator">
+          <span class="lead-ico">◈</span><span class="grow">Fix empty input test</span>
+        </button>
+        <button class="list-item sample-task" data-sample="api">
+          <span class="lead-ico">◈</span><span class="grow">Fix validation bug</span>
+        </button>
+        <button class="list-item sample-task" data-sample="cli">
+          <span class="lead-ico">◈</span><span class="grow">Fix argument parsing</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-label">
+          <span>Runs</span>
+          <span class="count" id="runs-count">0</span>
+        </div>
+        <div id="nav-runs" role="list"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-user-bar">
+      <div class="conn-row">
+        <span class="conn-dot" id="conn-dot"></span>
+        <span class="grow" id="conn-text">Connecting…</span>
+      </div>
+      <div class="sidebar-user-meta" id="conn-meta">/api/v1</div>
+    </div>
+  </nav>
+
+  <!-- ============================================================ chat -->
+  <main class="chat-container welcome-active" id="chat-container" aria-label="Chat area">
+
+    <div class="chat-top-bar">
+      <div class="chat-meta-overlay" id="chat-meta">
+        <span class="chat-meta-title" id="chat-meta-title">Nexora · secure coding agent</span>
+        <span class="chat-status-pill" id="chat-status">idle</span>
+        <span class="chat-cost" id="chat-cost" hidden>0 tok</span>
+      </div>
+    </div>
+
+    <div id="welcome-screen" class="welcome-screen">
+      <div class="welcome-name">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M16 2 30 16 16 30 2 16Z" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M16 9 23 16 16 23 9 16Z" fill="currentColor" opacity="0.85"/>
+        </svg>
+        <span>NEX<span class="gold">ORA</span></span>
+      </div>
+      <div class="welcome-sub" id="welcome-sub">Describe a bug, feature, or refactor. Every action is policy-gated, sandboxed, and logged.</div>
+      <div class="welcome-tip" id="welcome-tip"></div>
+      <div class="welcome-chips">
+        <button class="welcome-chip" data-tool="plan">◈ Execution plan</button>
+        <button class="welcome-chip" data-tool="policy">◈ Policy decisions</button>
+        <button class="welcome-chip" data-tool="security">◈ Security review</button>
+        <button class="welcome-chip" data-tool="evidence">◈ Evidence &amp; metrics</button>
+        <button class="welcome-chip" data-tool="patch">◈ Patch diff</button>
+        <button class="welcome-chip" data-tool="theme">◈ Theme</button>
+      </div>
+    </div>
+
+    <div id="chat-history" class="chat-history" role="log" aria-live="polite"></div>
+
+    <div class="attach-strip" id="attach-strip"></div>
+
+    <!-- composer -->
+    <div class="chat-input-bar" id="chat-input-bar">
+      <div class="chat-input-top">
+        <div id="message-ghost" class="ghost-text-overlay" aria-hidden="true"></div>
+        <textarea id="message" rows="1" autocomplete="off" aria-label="Task input" placeholder="Describe the task for the agent…"></textarea>
+
+        <div class="model-picker-wrap" id="model-picker-wrap">
+          <button type="button" class="model-picker-btn" id="model-picker-btn" title="Routing / model">
+            <span id="model-picker-label">Auto route</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+          </button>
+          <div class="model-picker-menu hidden" id="model-picker-menu">
+            <div class="model-picker-search-row">
+              <input type="text" id="model-picker-search" class="model-picker-search" placeholder="Search models…" autocomplete="off" aria-label="Search models">
+              <button class="btn-icon" id="model-picker-refresh" title="Reload model registry" aria-label="Reload model registry">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"/></svg>
+              </button>
+            </div>
+            <div class="model-picker-list" id="model-picker-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pinned-tools-bar" id="pinned-tools-bar"></div>
+
+      <div class="chat-input-bottom">
+        <div class="chat-input-left">
+          <div class="overflow-wrapper">
+            <button type="button" class="input-icon-btn" id="overflow-plus-btn" title="Tools" aria-label="Tools" aria-haspopup="true" aria-expanded="false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+            </button>
+            <div id="overflow-menu" class="overflow-menu hidden" role="menu"></div>
+          </div>
+
+          <div class="mode-toggle" id="routing-mode-toggle" role="group" aria-label="Routing mode">
+            <button type="button" data-mode="auto" class="active">Auto</button>
+            <button type="button" data-mode="fixed">Fixed</button>
+          </div>
+
+          <button class="budget-chip" id="budget-chip" title="Budget profile">Demo</button>
+          <button class="budget-chip" id="workspace-chip" title="Workspace">No workspace</button>
+        </div>
+
+        <div class="chat-input-right">
+          <button class="btn-icon" id="btn-cmdk" title="Command palette (Ctrl+K)" aria-label="Command palette">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          </button>
+          <button class="send-btn" id="send-btn" title="Run task" aria-label="Run task">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============================================================ tool modal -->
+  <div class="modal hidden" id="tool-modal" role="dialog" aria-modal="true" aria-labelledby="tool-modal-title">
+    <div class="modal-content" id="tool-modal-content">
+      <div class="modal-header" id="tool-modal-header">
+        <div class="modal-title">
+          <span id="tool-modal-title">Panel</span>
+          <span class="modal-subtitle" id="tool-modal-subtitle"></span>
+        </div>
+        <button class="btn-icon" id="tool-modal-prev" title="Previous panel" aria-label="Previous panel">‹</button>
+        <button class="btn-icon" id="tool-modal-next" title="Next panel" aria-label="Next panel">›</button>
+        <button class="close-btn" id="tool-modal-close" aria-label="Close">✖</button>
+      </div>
+      <nav class="admin-tabs" id="tool-modal-tabs"></nav>
+      <div class="modal-body" id="tool-modal-body"></div>
+      <div class="modal-footer" id="tool-modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================ command palette -->
+  <div class="cmdk-overlay hidden" id="cmdk-overlay">
+    <div class="cmdk" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div class="cmdk-input-row">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-muted)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="text" id="cmdk-input" class="cmdk-input" placeholder="Jump to a tool, run, or workspace…" autocomplete="off" aria-label="Command palette input">
+      </div>
+      <div class="cmdk-list" id="cmdk-list"></div>
+      <div class="cmdk-foot">
+        <span>↑↓ navigate</span><span>↵ select</span><span>Esc close</span><span>Ctrl+K toggles</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="/js/app.js?v=5"></script>
+</body>
+</html>
