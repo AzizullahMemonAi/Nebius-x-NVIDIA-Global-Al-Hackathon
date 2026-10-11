@@ -12,9 +12,9 @@ class ModelRouter:
     """
 
     MODEL_TIERS = {
-        "low": "nebius/nvidia/Nemotron-3_5-Lightning",
-        "moderate": "nebius/nvidia/nemotron-3-super-120b-a12b",
-        "high": "nebius/nvidia/Nemotron-3-Ultra-550b-a55b",
+        "low": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+        "moderate": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+        "high": "deepseek-ai/DeepSeek-R1-0528",
     }
 
     def select_model(

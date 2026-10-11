@@ -13,7 +13,7 @@ from packages.nebius_adapter.base import ModelProvider
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_ID = "nebius/nvidia/Nemotron-3_5-Lightning"
+DEFAULT_MODEL_ID = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 REDACTED = "[REDACTED]"
 
 
@@ -68,6 +68,7 @@ class NebiusAdapter(ModelProvider):
         kwargs: dict[str, Any] = {
             "model": selected_model_id,
             "messages": [{"role": "user", "content": request.prompt}],
+            "max_tokens": request.token_budget,
         }
         if request.tools:
             kwargs["tools"] = request.tools

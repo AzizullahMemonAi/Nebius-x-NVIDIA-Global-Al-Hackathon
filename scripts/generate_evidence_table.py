@@ -21,7 +21,7 @@ def collect_metrics() -> List[Dict[str, Any]]:
         {
             "name": "mock/nemotron-super (moderate complexity)",
             "request": ModelRequest(prompt="Moderate complexity task with more details", task_complexity="moderate"),
-            "with_tools": True,
+            "with_tools": False,
         },
         {
             "name": "mock/nemotron-ultra (high complexity)",
@@ -47,7 +47,7 @@ def collect_metrics() -> List[Dict[str, Any]]:
 
             results.append(
                 {
-                    "Model Name": case["name"],
+                    "Scenario": case["name"],
                     "Latency (ms)": f"{latency:.2f}",
                     "Prompt Tokens": str(response.input_tokens),
                     "Completion Tokens": str(response.output_tokens),
@@ -59,7 +59,7 @@ def collect_metrics() -> List[Dict[str, Any]]:
         except Exception as e:
             results.append(
                 {
-                    "Model Name": case["name"],
+                    "Scenario": case["name"],
                     "Latency (ms)": "N/A",
                     "Prompt Tokens": "0",
                     "Completion Tokens": "0",
@@ -78,7 +78,7 @@ def print_markdown_table(results: List[Dict[str, Any]]) -> None:
         return
 
     headers = [
-        "Model Name",
+        "Scenario",
         "Latency (ms)",
         "Prompt Tokens",
         "Completion Tokens",

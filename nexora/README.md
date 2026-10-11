@@ -101,11 +101,15 @@ Two profiles are included by default:
 - **demo**: 10 steps, 20 tool calls, 1 retry, 300s timeout, 8K input / 2K output tokens
 - **standard**: 40 steps, 80 tool calls, 3 retries, 900s timeout, 50K input / 12K output tokens
 
+In the **demo** profile, basic calculator requests use a local Python starter
+and the normal policy-checked repository-write and validation flow; they do
+not require a provider API key. Other tasks use the configured model provider.
+
 ### Model Registry
-Models must be registered and enabled after verification:
+Nebius Token Factory models must be registered and enabled after verification:
 ```sql
 INSERT INTO model_registry (model_id, display_name, provider, tier, context_capacity, max_output_tokens, supports_tools, supports_reasoning, is_enabled, verification_date, terms_reviewed)
-VALUES ('nemotron-3-ultra', 'Nemotron 3 Ultra', 'nebius', 'ultra', 128000, 4096, true, true, true, NOW(), true);
+VALUES ('deepseek-ai/DeepSeek-R1-0528', 'DeepSeek R1 0528', 'nebius', 'ultra', 128000, 4096, true, true, true, NOW(), true);
 ```
 
 ### Policy Configuration

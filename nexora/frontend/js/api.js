@@ -168,6 +168,12 @@ api.models = {
   update: (id, data) => api.patch(`/models/${id}`, data),
 };
 
+// Standalone packages/* layer (contracts, model_router, nebius_adapter)
+api.packages = {
+  routing: () => api.get('/packages/routing'),
+  complete: (data) => api.post('/packages/complete', data),
+};
+
 // Runs (Nexora's equivalent of sessions)
 api.runs = {
   list: (params = {}) => api.get('/runs', params),

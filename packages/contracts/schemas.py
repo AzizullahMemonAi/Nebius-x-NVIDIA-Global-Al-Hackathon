@@ -4,7 +4,7 @@ Shared provider-neutral contracts.
 The schemas here are the only shapes that cross the boundary between the
 router and any model provider adapter.
 """
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,10 +16,12 @@ class ModelRequest(BaseModel):
     tools: Optional[list[dict[str, Any]]] = Field(
         default=None, description="Tool definitions the model may call"
     )
-    task_complexity: str = Field(
-        default="low", description="Routing hint: low, moderate or complex"
+    task_complexity: Literal["low", "moderate", "high"] = Field(
+        default="low", description="Routing hint: low, moderate or high"
     )
-    token_budget: int = Field(default=1000, description="Maximum output tokens")
+    token_budget: int = Field(
+        default=1000, gt=0, description="Maximum output tokens"
+    )
     preferred_model: Optional[str] = Field(
         default=None, description="Model to use when the caller pins one"
     )
