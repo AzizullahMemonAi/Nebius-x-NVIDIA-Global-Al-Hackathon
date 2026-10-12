@@ -33,33 +33,6 @@ COMMIT_HASHES = {
     "sample-cli": "7f8e9d0c1b2a39485766554433221100",
 }
 
-NEBIUS_MODELS = [
-    {
-        "model_id": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-        "display_name": "Meta Llama 3.1 8B Instruct",
-        "tier": "nano",
-        "context_capacity": 32_000,
-        "max_output_tokens": 2_048,
-        "supports_reasoning": 0,
-    },
-    {
-        "model_id": "meta-llama/Meta-Llama-3.1-70B-Instruct",
-        "display_name": "Meta Llama 3.1 70B Instruct",
-        "tier": "super",
-        "context_capacity": 64_000,
-        "max_output_tokens": 4_096,
-        "supports_reasoning": 1,
-    },
-    {
-        "model_id": "deepseek-ai/DeepSeek-R1-0528",
-        "display_name": "DeepSeek R1 0528",
-        "tier": "ultra",
-        "context_capacity": 128_000,
-        "max_output_tokens": 4_096,
-        "supports_reasoning": 1,
-    },
-]
-
 # Secondary provider. Nebius rows already exist from the migration; these Gemini
 # rows are appended AFTER them on purpose -- ``ModelRouter.route`` picks the
 # first row of the matching tier bucket in registry order, so appending keeps
@@ -202,61 +175,15 @@ def seed_gemini_models(con: sqlite3.Connection) -> int:
     return inserted
 
 
-def seed_nebius_models(con: sqlite3.Connection) -> int:
-    """Sync primary registry IDs with the NVIDIA API's advertised model IDs."""
-    updated = 0
-    for spec in NEBIUS_MODELS:
-        row = con.execute(
-            "SELECT id FROM model_registry WHERE provider = 'nebius' AND tier = ?",
-            (spec["tier"],),
-        ).fetchone()
-        if row:
-            con.execute(
-                "UPDATE model_registry SET model_id = ?, display_name = ?,"
-                " context_capacity = ?, max_output_tokens = ?,"
-                " supports_tools = 1, supports_reasoning = ?, is_enabled = 1,"
-                " terms_reviewed = 1 WHERE id = ?",
-                (
-                    spec["model_id"],
-                    spec["display_name"],
-                    spec["context_capacity"],
-                    spec["max_output_tokens"],
-                    spec["supports_reasoning"],
-                    row["id"],
-                ),
-            )
-        else:
-            con.execute(
-                "INSERT INTO model_registry"
-                " (id, model_id, display_name, provider, tier, context_capacity,"
-                "  max_output_tokens, supports_tools, supports_reasoning,"
-                "  is_enabled, terms_reviewed, created_at)"
-                " VALUES (?, ?, ?, 'nebius', ?, ?, ?, 1, ?, 1, 1, ?)",
-                (
-                    str(uuid.uuid4()),
-                    spec["model_id"],
-                    spec["display_name"],
-                    spec["tier"],
-                    spec["context_capacity"],
-                    spec["max_output_tokens"],
-                    spec["supports_reasoning"],
-                    utcnow(),
-                ),
-            )
-        updated += 1
-    return updated
-
-
 def seed_models(con: sqlite3.Connection) -> int:
     """Register secondary-provider rows, then enable the registry."""
-    primary_synced = seed_nebius_models(con)
     added = seed_gemini_models(con)
     enabled = con.execute(
         "UPDATE model_registry SET is_enabled = 1, terms_reviewed = 1"
         " WHERE provider = 'nebius' AND (is_enabled = 0 OR terms_reviewed = 0)"
     ).rowcount
 
-    print(f"  {primary_synced} Nebius row(s) synced, {added} Gemini row(s) inserted")
+    print(f"  {added} gemini row(s) inserted")
     for row in con.execute(
         "SELECT model_id, display_name, provider, tier, is_enabled"
         " FROM model_registry ORDER BY rowid"
@@ -289,22 +216,15 @@ def verify(con: sqlite3.Connection) -> None:
     # registry order, so a secondary-provider row inserted ahead of the primary
     # one would silently take over auto mode. Fail loudly instead.
     for tier in ("nano", "super", "ultra"):
-        expected_ids = {
-            model["tier"]: model["model_id"] for model in NEBIUS_MODELS
-        }
         head = con.execute(
-            "SELECT provider, model_id FROM model_registry"
+            "SELECT provider FROM model_registry"
             " WHERE is_enabled = 1 AND tier = ? ORDER BY rowid LIMIT 1",
             (tier,),
         ).fetchone()
-        if head and (
-            head["provider"] != "nebius"
-            or head["model_id"] != expected_ids[tier]
-        ):
+        if head and head["provider"] != "nebius":
             problems.append(
-                f"auto-routing for tier {tier!r} resolves to "
-                f"{head['provider']!r}/{head['model_id']!r}, expected "
-                f"nebius/{expected_ids[tier]!r}"
+                f"auto-routing for tier {tier!r} would resolve to secondary "
+                f"provider {head['provider']!r}, not the primary provider"
             )
 
     for row in con.execute("SELECT snapshot_path FROM repository_snapshots"):

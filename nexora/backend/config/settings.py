@@ -2,26 +2,18 @@
 Nexora Backend Configuration
 Centralized settings management using Pydantic Settings
 """
-import json
 import os
 from functools import lru_cache
-from pathlib import Path
-from typing import Annotated, List, Optional
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
-
-_BACKEND_DIR = Path(__file__).resolve().parents[1]
-_APP_DIR = _BACKEND_DIR.parent
-ENV_FILES = tuple(
-    p for p in (_APP_DIR / ".env", _BACKEND_DIR / ".env") if p.is_file()
-)
+from typing import List, Optional
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
-
+    
     model_config = SettingsConfigDict(
-        env_file=ENV_FILES or None,
+        env_file="nexora/backend/.env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"
@@ -51,25 +43,15 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = Field(default="", description="Secret key for session signing")
     API_KEY_HEADER: str = Field(default="X-API-Key", description="API key header name")
-    ALLOWED_ORIGINS: Annotated[List[str], NoDecode] = Field(
+    ALLOWED_ORIGINS: List[str] = Field(
         default=["http://localhost:3000", "http://localhost:8000", "http://localhost:8001"],
         description="CORS allowed origins"
     )
-
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def _parse_allowed_origins(cls, value: object) -> object:
-        if not isinstance(value, str):
-            return value
-        text = value.strip()
-        if text.startswith("["):
-            return json.loads(text)
-        return [origin.strip() for origin in text.split(",") if origin.strip()]
     
     # Nebius / NVIDIA Provider
     NEBIUS_API_KEY: str = Field(default="", description="Nebius API key")
     NEBIUS_BASE_URL: str = Field(
-        default="https://api.tokenfactory.nebius.com/v1/",
+        default="https://integrate.api.nvidia.com/v1",
         description="Nebius API base URL"
     )
     NEBIUS_TIMEOUT: int = Field(default=120, description="Provider request timeout in seconds")

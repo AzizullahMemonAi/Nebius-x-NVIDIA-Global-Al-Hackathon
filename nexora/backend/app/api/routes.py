@@ -67,7 +67,7 @@ def pk(value: uuid.UUID | str) -> str:
 # Workspace Routes
 # ============================================================
 
-@router.post("/workspaces", response_model=WorkspaceResponse, status_code=status.HTTP_200_OK)
+@router.post("/workspaces", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
 async def create_workspace(
     workspace: WorkspaceCreate,
     db: AsyncSession = Depends(get_db),
@@ -75,16 +75,6 @@ async def create_workspace(
     """Create a new workspace"""
     db_workspace = Workspace(**workspace.model_dump())
     db.add(db_workspace)
-    await db.flush()
-    
-    snapshot = RepositorySnapshot(
-        workspace_id=db_workspace.id,
-        snapshot_path=f"/tmp/workspaces/{db_workspace.id}",
-        branch_name="main",
-        commit_hash="initial_commit"
-    )
-    db.add(snapshot)
-    
     await db.commit()
     await db.refresh(db_workspace)
     return db_workspace
@@ -303,7 +293,7 @@ async def update_model(
 # Run Routes
 # ============================================================
 
-@router.post("/runs", response_model=RunResponse, status_code=status.HTTP_200_OK)
+@router.post("/runs", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
 async def create_run(
     run: RunCreate,
     db: AsyncSession = Depends(get_db),

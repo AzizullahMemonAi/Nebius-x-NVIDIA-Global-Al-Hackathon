@@ -49,7 +49,6 @@ class ValidatorCritic:
         task_constraints: List[str],
         run_id: str,
         step_number: int,
-        patch_already_applied: bool = False,
     ) -> List[ValidationResult]:
         """
         Run all validation checks.
@@ -61,9 +60,7 @@ class ValidatorCritic:
         
         # 1. Patch applies cleanly
         if patch_content:
-            results.append(
-                self._check_patch_applies(patch_content, already_applied=patch_already_applied)
-            )
+            results.append(self._check_patch_applies(patch_content))
         else:
             results.append(ValidationResult(
                 check_type="patch_applies",
@@ -98,12 +95,8 @@ class ValidatorCritic:
         
         return results
     
-    def _check_patch_applies(
-        self,
-        patch_content: str,
-        already_applied: bool = False,
-    ) -> ValidationResult:
-        """Check whether a proposed or already-applied patch is consistent."""
+    def _check_patch_applies(self, patch_content: str) -> ValidationResult:
+        """Check if patch applies cleanly"""
         try:
             # Write patch to temp file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.patch', delete=False) as f:
@@ -111,11 +104,8 @@ class ValidatorCritic:
                 patch_file = f.name
             
             # Try dry-run
-            apply_args = ["git", "apply", "--check"]
-            if already_applied:
-                apply_args.append("--reverse")
             proc = subprocess.run(
-                [*apply_args, patch_file],
+                ["git", "apply", "--check", patch_file],
                 cwd=self.workspace_path,
                 capture_output=True,
                 text=True,
@@ -129,11 +119,7 @@ class ValidatorCritic:
                 return ValidationResult(
                     check_type="patch_applies",
                     status=ValidationStatus.PASS,
-                    message=(
-                        "Patch is applied and can be cleanly reversed"
-                        if already_applied
-                        else "Patch applies cleanly"
-                    ),
+                    message="Patch applies cleanly",
                 )
             else:
                 return ValidationResult(

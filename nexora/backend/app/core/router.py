@@ -1,4 +1,4 @@
-"""
+﻿"""
 Nexora Model Router and Provider Adapter
 Routes to appropriate model and handles provider communication
 """
@@ -298,19 +298,10 @@ class ProviderAdapter:
             # Normalize tool calls
             normalized_calls = []
             for tc in tool_calls:
-                args_raw = tc.get("function", {}).get("arguments", "{}")
-                if isinstance(args_raw, str):
-                    try:
-                        args_parsed = json.loads(args_raw)
-                    except json.JSONDecodeError:
-                        args_parsed = {}
-                else:
-                    args_parsed = args_raw or {}
-                    
                 normalized_calls.append({
                     "id": tc.get("id"),
                     "name": tc.get("function", {}).get("name"),
-                    "arguments": args_parsed,
+                    "arguments": tc.get("function", {}).get("arguments"),
                 })
             tool_calls = normalized_calls
         
@@ -341,9 +332,10 @@ _provider_adapter: Optional[ProviderAdapter] = None
 
 
 def get_model_router(enabled_models: List[ModelRegistry]) -> ModelRouter:
-    """Build a router from the current registry rows."""
+    """Get or create model router"""
     global _model_router
-    _model_router = ModelRouter(enabled_models)
+    if _model_router is None:
+        _model_router = ModelRouter(enabled_models)
     return _model_router
 
 

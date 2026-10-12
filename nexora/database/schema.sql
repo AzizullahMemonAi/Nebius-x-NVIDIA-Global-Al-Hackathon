@@ -318,6 +318,6 @@ INSERT INTO workspaces (name, description, repository_url, repository_type, init
 
 -- Model registry entries (candidate tiers - enabled after verification)
 INSERT INTO model_registry (model_id, display_name, provider, tier, context_capacity, max_output_tokens, supports_tools, supports_reasoning, is_enabled, verification_date, terms_reviewed) VALUES
-('deepseek-ai/DeepSeek-R1-0528', 'DeepSeek R1 0528', 'nebius', 'ultra', 128000, 4096, true, true, false, NULL, false),
-('meta-llama/Meta-Llama-3.1-70B-Instruct', 'Meta Llama 3.1 70B Instruct', 'nebius', 'super', 131072, 4096, true, false, false, NULL, false),
-('meta-llama/Meta-Llama-3.1-8B-Instruct', 'Meta Llama 3.1 8B Instruct', 'nebius', 'nano', 131072, 2048, true, false, false, NULL, false);
+('nemotron-3-ultra', 'Nemotron 3 Ultra', 'nebius', 'ultra', 128000, 4096, true, true, false, NULL, false),
+('nemotron-3-super', 'Nemotron 3 Super', 'nebius', 'super', 64000, 4096, true, true, false, NULL, false),
+('nemotron-3-nano', 'Nemotron 3 Nano', 'nebius', 'nano', 32000, 2048, true, false, false, NULL, false);

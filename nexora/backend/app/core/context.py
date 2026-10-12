@@ -1,4 +1,4 @@
-"""
+﻿"""
 Nexora Context Optimizer
 Indexes, ranks, budgets, compresses, and caches repository context
 """
@@ -48,29 +48,6 @@ class ContextPackage:
     compression_ratio: Optional[float]
 
 
-import ast
-
-
-def skeletonize_python(source_code: str) -> str:
-    """
-    Extract class and function signatures, type annotations, imports, 
-    and docstrings, replacing function bodies with 'pass'.
-    """
-    try:
-        tree = ast.parse(source_code)
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                doc = ast.get_docstring(node)
-                if doc:
-                    node.body = [ast.Expr(value=ast.Constant(value=doc)), ast.Pass()]
-                else:
-                    node.body = [ast.Pass()]
-        return ast.unparse(tree)
-    except Exception:
-        # Fallback to source code if syntax cannot be parsed
-        return source_code
-
-
 class ContextOptimizer:
     """
     Context Optimizer - builds model context from repository.
@@ -107,8 +84,8 @@ class ContextOptimizer:
         Returns:
             ContextPackage ready for model
         """
-        # Refresh repository index if workspace exists
-        if self.workspace_path.exists():
+        # Ensure index is built
+        if not self._indexed:
             self._build_index()
         
         # Extract query terms
@@ -124,10 +101,11 @@ class ContextOptimizer:
         budget = self._calculate_budget(model)
         selected, omitted = self._allocate_budget(ranked, budget, current_diff, recent_tool_output)
         
-        # Compress context using AST skeletonization and cache reuse
-        compressed, cache_hits, compression_ratio = self._compress_context(
-            selected, budget, task_query, current_diff
-        )
+        # Compress context
+        compressed = self._compress_context(selected, budget)
+        
+        # Check cache
+        cache_hits = self._check_cache(selected)
         
         # Estimate tokens
         estimated_tokens = self._estimate_tokens(compressed, task_query, current_diff, recent_tool_output)
@@ -144,15 +122,12 @@ class ContextOptimizer:
             ranking_reasons=ranking_reasons,
             cache_hits=cache_hits,
             estimated_tokens=estimated_tokens,
-            compression_ratio=compression_ratio,
+            compression_ratio=None,  # Would need actual vs original
         )
     
     def _build_index(self) -> None:
         """Build repository index using Python AST"""
         self._index = {}
-        if not self.workspace_path.exists():
-            self._indexed = True
-            return
         
         for py_file in self.workspace_path.rglob("*.py"):
             # Skip excluded directories
@@ -378,83 +353,39 @@ class ContextOptimizer:
         self,
         selected: List[RankedFile],
         budget: int,
-        task_query: str = "",
-        current_diff: Optional[str] = None,
-    ) -> Tuple[List[Dict[str, Any]], int, float]:
-        """
-        Compress selected files using AST skeletonization and active cache reuse.
-        Safeguard: explicitly targeted files and files in the current diff retain full contents;
-        other selected Python files are skeletonized.
-        """
+    ) -> List[Dict[str, Any]]:
+        """Compress selected files to fit budget"""
         compressed = []
-        cache_hits = 0
-        original_chars = 0
-        compressed_chars = 0
-        query_lower = task_query.lower()
-        diff_str = current_diff or ""
-
+        
         for ranked_file in selected:
             file_info = ranked_file.file_info
             path = file_info.path
-            path_filename = Path(path).name.lower()
-            path_stem = Path(path).stem.lower()
-
-            # Safeguard: targeted files or files in diff retain full content
-            is_target = (
-                path in diff_str
-                or path_filename in query_lower
-                or (len(path_stem) > 2 and path_stem in query_lower)
-                or "in_current_diff" in ranked_file.reasons
-            )
-            mode = "full" if (is_target or file_info.language != "python") else "skeleton"
-            cache_key = f"{path}:{file_info.hash}:{mode}"
-
-            if cache_key in self._cache:
-                cache_hits += 1
-                entry = dict(self._cache[cache_key])
-                entry["relevance_score"] = ranked_file.score
-                entry["reasons"] = ranked_file.reasons
-                compressed.append(entry)
-                compressed_chars += len(entry.get("content", ""))
-                original_chars += file_info.size
-                continue
-
+            
+            # Read file content
             full_path = self.workspace_path / path
             try:
-                raw_content = full_path.read_text(encoding="utf-8")
+                content = full_path.read_text(encoding="utf-8")
             except Exception:
-                raw_content = f"# Could not read {path}"
-
-            original_chars += len(raw_content)
-
-            if mode == "skeleton":
-                final_content = skeletonize_python(raw_content)
-            else:
-                final_content = raw_content
-
-            compressed_chars += len(final_content)
-
-            entry = {
+                content = f"# Could not read {path}"
+            
+            # For now, include full file (compression is future work)
+            compressed.append({
                 "path": path,
-                "content": final_content,
+                "content": content,
                 "language": file_info.language,
                 "symbols": file_info.symbols,
                 "relevance_score": ranked_file.score,
                 "reasons": ranked_file.reasons,
-                "content_mode": mode,
-            }
-            self._cache[cache_key] = entry
-            compressed.append(entry)
-
-        ratio = round(1.0 - (compressed_chars / max(original_chars, 1)), 2) if original_chars > 0 else 0.0
-        return compressed, cache_hits, ratio
-
+            })
+        
+        return compressed
+    
     def _check_cache(self, selected: List[RankedFile]) -> int:
         """Check cache for file summaries"""
         hits = 0
         for ranked_file in selected:
-            cache_key = f"{ranked_file.file_info.path}:{ranked_file.file_info.hash}:skeleton"
-            if cache_key in self._cache or f"{ranked_file.file_info.path}:{ranked_file.file_info.hash}:full" in self._cache:
+            cache_key = f"{ranked_file.file_info.path}:{ranked_file.file_info.hash}"
+            if cache_key in self._cache:
                 hits += 1
         return hits
     

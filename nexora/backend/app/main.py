@@ -11,7 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from nexora.backend.app.api.routes import router as api_router
-from nexora.backend.app.api.package_routes import router as package_router
 from nexora.backend.app.core.database import close_db, init_db
 from nexora.backend.config.settings import get_settings
 
@@ -59,8 +58,6 @@ app.add_middleware(
 
 # API routes
 app.include_router(api_router, prefix="/api/v1")
-# Standalone packages/* layer (contracts, model_router, nebius_adapter)
-app.include_router(package_router, prefix="/api/v1")
 
 # Mount frontend static files (in production)
 # app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

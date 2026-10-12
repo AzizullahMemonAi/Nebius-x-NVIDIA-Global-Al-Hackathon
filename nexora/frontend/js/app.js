@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Nexora — application orchestrator.
  *
  * Wires the Odysseus-style shell (icon rail + sidebar + chat composer +
@@ -17,8 +17,8 @@ import { modals } from './ui/modal.js';
 import { shell } from './ui/shell.js';
 import { toast } from './ui/toast.js';
 import { renderMarkdown } from './ui/markdown.js';
-import { PANELS, PANEL_MAP, setActivePanel } from './panels.js?v=12';
-import { themePanel, bindThemePanel, settingsPanel, bindSettingsPanel } from './ui/prefs.js?v=12';
+import { PANELS, PANEL_MAP, setActivePanel } from './panels.js';
+import { themePanel, bindThemePanel, settingsPanel, bindSettingsPanel } from './ui/prefs.js';
 
 /* ========================================================================== */
 const SAMPLE_TASKS = {
@@ -131,7 +131,6 @@ class NexoraApp {
       this.loadModels(),
       this.loadBudgetProfiles(),
       this.loadRuns(),
-      this.loadPackageRouting(),
     ]);
     const failed = results.filter((r) => r.status === 'rejected');
     if (failed.length) {
@@ -156,11 +155,8 @@ class NexoraApp {
 
     // Static server on a dev port → try the backend port first so the happy
     // path never issues a doomed same-origin request.
-    if (!['80', '443'].includes(port)) {
-      for (const backendPort of ['8001', '8000']) {
-        if (backendPort === port) continue;
-        candidates.push(`${window.location.protocol}//${window.location.hostname}:${backendPort}${suffix}`);
-      }
+    if (!['80', '443', '8000'].includes(port)) {
+      candidates.push(`${window.location.protocol}//${window.location.hostname}:8000${suffix}`);
     }
     candidates.push(`${window.location.origin}${suffix}`);
 
@@ -191,16 +187,6 @@ class NexoraApp {
     const models = await window.NexoraApi.models.list(false);
     this.state.set('models', models || []);
     this.state.set('enabledModels', (models || []).filter((m) => m.is_enabled));
-  }
-
-  /**
-   * Pull the standalone packages/* layer (contracts + model_router +
-   * nebius_adapter) as the backend sees it, so the Router panel can show the
-   * package tier decisions next to the ModelRegistry rows they resolve to.
-   */
-  async loadPackageRouting() {
-    const data = await window.NexoraApi.packages.routing();
-    this.state.set('packageRouting', data);
   }
 
   async loadBudgetProfiles() {
@@ -339,15 +325,21 @@ class NexoraApp {
       }
     });
     on(send, 'click', () => {
-      const run = this.state.get('currentRun');
-      if (run && ['queued', 'awaiting_start'].includes(run.status)) this.startRun(run.id);
-      else if (this.isRunActive()) this.stopRun();
+      if (this.isRunActive()) this.stopRun();
       else this.submit();
     });
 
     this.updateGhost(ghost, input);
 
-
+    // routing mode
+    delegate($('#routing-mode-toggle'), 'click', 'button', (_e, node) => {
+      $$('#routing-mode-toggle button').forEach((b) => b.classList.toggle('active', b === node));
+      this.state.set('routingMode', node.dataset.mode);
+      this.renderModelPicker();
+      if (node.dataset.mode === 'fixed' && !this.state.get('selectedModelId')) {
+        toast('Pick a model target in the routing menu.', 'info');
+      }
+    });
 
     // model picker
     const mpBtn = $('#model-picker-btn');
@@ -575,7 +567,7 @@ class NexoraApp {
   }
 
   panelOrder() {
-    return ['runs', 'theme', 'settings'];
+    return [...PANELS.map((p) => p.id), 'theme', 'settings'];
   }
 
   cyclePanel(delta) {
@@ -603,7 +595,6 @@ class NexoraApp {
       selectedProfile: profiles.find((p) => p.id === profileId) || this.state.get('defaultBudgetProfile'),
       workspaces: this.state.get('workspaces') || [],
       models: this.state.get('models') || [],
-      packageRouting: this.state.get('packageRouting'),
       health: this.health,
       apiBase: this.apiBase,
       pollMs: this.pollMs,
@@ -616,11 +607,6 @@ class NexoraApp {
         refresh: () => this.bootstrapData(),
         reloadRuns: () => this.loadRuns(),
         clearChat: () => this.clearChat(),
-        reloadPackageRouting: async () => {
-          await this.loadPackageRouting();
-          this.renderToolModal();
-        },
-        completeViaPackage: (payload) => window.NexoraApi.packages.complete(payload),
       },
     };
   }
@@ -720,11 +706,13 @@ class NexoraApp {
     on(document, 'keydown', (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.target.matches('input, textarea')) return;
-      const map = { 1: 'runs' };
+      const map = { 1: 'runs', 2: 'plan', 3: 'policy', 4: 'security', 5: 'evidence', 6: 'patch', 7: 'tests', 8: 'approvals', 9: 'audit' };
       if (map[e.key]) {
         e.preventDefault();
         this.openPanel(map[e.key]);
-
+      } else if (e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        this.openPanel('theme');
       } else if (e.key.toLowerCase() === 'n') {
         e.preventDefault();
         this.newRun();
@@ -853,10 +841,6 @@ class NexoraApp {
     const mode = this.state.get('routingMode') || 'auto';
     const modelId = this.state.get('selectedModelId');
     const profileId = this.state.get('selectedBudgetProfileId') || this.state.get('defaultBudgetProfile')?.id;
-    const selectedProfile = (this.state.get('budgetProfiles') || []).find((profile) => profile.id === profileId);
-    const autoStartDemoCalculator = selectedProfile?.name?.toLowerCase() === 'demo'
-      && /\b(calculator)\b/i.test(text)
-      && /\b(create|build|write|implement|make|fix)\b/i.test(text);
 
     input.value = '';
     this.autoGrow(input);
@@ -882,14 +866,15 @@ class NexoraApp {
 
       this.updateMessage(pending.id, this.describeRun(run), {
         roleLabel: 'Nexora · run created',
+        actions: [
+          { label: 'Plan', onClick: () => this.openPanel('plan') },
+          { label: 'Policy', onClick: () => this.openPanel('policy') },
+          { label: 'Security', onClick: () => this.openPanel('security') },
+          { label: 'Evidence', onClick: () => this.openPanel('evidence') },
+        ],
       });
 
-      if (this.autoStart || autoStartDemoCalculator) {
-        const preparedRun = await this.startRun(run.id);
-        if (preparedRun?.status === 'awaiting_start') {
-          await this.startRun(run.id);
-        }
-      }
+      if (this.autoStart) await this.startRun(run.id);
       await this.loadRuns();
       this.renderRunsList();
     } catch (error) {
@@ -900,11 +885,19 @@ class NexoraApp {
 
   describeRun(run) {
     const model = (this.state.get('models') || []).find((m) => m.id === run.requested_model_id);
+    const profile = (this.state.get('budgetProfiles') || []).find((p) => p.id === run.budget_profile_id);
     const lines = [
-      `Run \`${run.id.slice(0, 8)}\` initialized.`,
+      `Run \`${run.id}\` accepted by the gateway.`,
+      '',
       `- **Status** — ${tag(run.status)}`,
-      `- **Routing** — ${run.routing_mode}${model ? ` (${model.display_name})` : ''}`,
+      `- **Stage** — ${run.current_stage || 'queued'}`,
+      `- **Routing** — ${run.routing_mode}${model ? ` → ${model.display_name} (${model.provider || PRIMARY_PROVIDER}${isPrimaryProvider(model) ? '' : ', secondary'})` : ''}`,
+      `- **Budget** — ${profile ? `${profile.name} (${profile.max_steps} steps / ${profile.max_tool_calls} tool calls)` : 'default'}`,
+      `- **Task hash** — \`${String(run.task_hash || '').slice(0, 24)}\``,
     ];
+    if (run.status === 'awaiting_start') {
+      lines.push('', 'Execution is waiting for an explicit start.');
+    }
     return lines.join('\n');
   }
 
@@ -914,35 +907,12 @@ class NexoraApp {
   }
 
   async startRun(runId) {
-    const currentRun = this.state.get('currentRun');
-    if (currentRun?.id === runId && currentRun.status === 'awaiting_start') {
-      this.startPolling(runId);
-    }
-
     try {
       const run = await window.NexoraApi.runs.start(runId);
       this.state.set('currentRun', run);
-      const detail = await window.NexoraApi.runs.get(runId);
-      this.state.set('currentRunDetail', detail);
-      this.state.set('currentRun', detail.run);
-
-      if (TERMINAL.includes(detail.run.status)) {
-        this.stopPolling();
-        this.pushMessage('system', `Run \`${runId.slice(0, 8)}\` finished with **${detail.run.status}**.`);
-        toast(`Run ${detail.run.status}.`, detail.run.status === 'completed' ? 'success' : 'warning');
-      } else {
-        this.pushMessage(
-          'system',
-          run.status === 'awaiting_start'
-            ? `Plan ready for \`${runId.slice(0, 8)}\`.`
-            : `Execution started for \`${runId.slice(0, 8)}\`.`
-        );
-        if (this.isRunActive()) this.startPolling(runId);
-        else this.stopPolling();
-      }
-      this.afterRunUpdate();
-      await this.loadRuns();
-      this.renderRunsList();
+      this.pushMessage('system', `Execution started for \`${runId}\`.`);
+      this.startPolling(runId);
+      this.updateRunStatusUI();
       return run;
     } catch (error) {
       toast(`Could not start run: ${error.message}`, 'error');
@@ -973,8 +943,6 @@ class NexoraApp {
       this.state.set('currentRunDetail', detail);
       this.state.set('currentRun', detail.run);
       if (!options.silent) {
-        this.clearChat(true);
-        this.pushMessage('user', detail.run.task_text);
         this.pushMessage('system', `Loaded run \`${runId}\` (${detail.run.status}).`);
       }
       if (this.isRunActive()) this.startPolling(runId);
@@ -1032,51 +1000,8 @@ class NexoraApp {
     this.updateRunStatusUI();
     this.updateCost();
     this.updateRailBadges();
-    this.updateIdePane();
     this.renderRunsList();
     if (modals.isOpen('tool')) this.renderToolModal();
-  }
-
-  updateIdePane() {
-    const detail = this.state.get('currentRunDetail');
-    if (!detail) return;
-    
-    // Find the code block element
-    const ideContent = document.querySelector('.ide-content code') || document.querySelector('.ide-content');
-    if (!ideContent) return;
-
-    // Check if there is patch_content generated by the agent
-    const code = detail.run_result?.patch_content;
-    const tabFilename = document.getElementById('ide-tab-filename');
-    
-    if (code) {
-        let filename = "solution.py";
-        const match = code.match(/diff --git a\/(.*?) b\//);
-        if (match && match[1]) {
-            filename = match[1];
-        }
-
-        // Clean out diff headers so only pure source code is shown in the IDE editor
-        let cleanCode = code
-          .replace(/^diff --git a\/.*? b\/.*?\n/m, '')
-          .replace(/^--- a\/.*?\n/m, '')
-          .replace(/^\+\+\+ b\/.*?\n/m, '')
-          .replace(/^@@.*?@@\n/m, '')
-          .trim();
-
-        ideContent.textContent = cleanCode || code;
-        if (tabFilename) tabFilename.textContent = filename;
-    } else {
-        const status = detail.run?.status || 'idle';
-        const workingStatuses = ['idle', 'queued', 'planning', 'context_build', 'model_step', 'executing', 'awaiting_start', 'awaiting_approval'];
-        if (workingStatuses.includes(status)) {
-            ideContent.textContent = "# Nexora is generating code...\n# Please wait a moment.";
-            if (tabFilename) tabFilename.textContent = "generating...";
-        } else {
-            ideContent.textContent = "# No code produced for this task yet.";
-            if (tabFilename) tabFilename.textContent = "no-changes.txt";
-        }
-    }
   }
 
   updateRunStatusUI() {
@@ -1095,14 +1020,10 @@ class NexoraApp {
     }
 
     if (send) {
-      const waitingForStart = ['queued', 'awaiting_start'].includes(run?.status);
-      const active = this.isRunActive() && !waitingForStart;
+      const active = this.isRunActive();
       send.classList.toggle('stop-mode', active);
-      const actionLabel = waitingForStart
-        ? (run.status === 'queued' ? 'Start run' : 'Accept plan and execute')
-        : active ? 'Cancel run' : 'Run task';
-      send.title = actionLabel;
-      send.setAttribute('aria-label', actionLabel);
+      send.title = active ? 'Cancel run' : 'Run task';
+      send.setAttribute('aria-label', active ? 'Cancel run' : 'Run task');
       send.innerHTML = active
         ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
         : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';

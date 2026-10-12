@@ -1,11 +1,10 @@
-"""
+﻿"""
 Nexora Run Orchestrator
 Coordinates the complete run lifecycle
 """
 import asyncio
 import hashlib
 import json
-import subprocess
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -31,7 +30,6 @@ from nexora.backend.app.core.router import (
     ModelRouter,
     ProviderAdapter,
     InferenceRequest,
-    InferenceResponse,
     get_model_router,
     RoutingReason,
 )
@@ -107,130 +105,6 @@ def _as_uuid_str(value: Any) -> Optional[str]:
     return str(uuid.UUID(text))
 
 
-def _local_demo_calculator_tool_call(task_text: str) -> Optional[Dict[str, Any]]:
-    """Return a safe starter-code write for basic calculator requests."""
-    task = task_text.casefold()
-    if "calculator" not in task or not any(
-        verb in task for verb in ("create", "build", "write", "implement", "make", "fix")
-    ):
-        return None
-
-    content = '''"""A small calculator with explicit errors for invalid input."""
-
-
-class CalculatorError(ValueError):
-    """Raised when an expression or operation is invalid."""
-
-
-class Calculator:
-    def __init__(self):
-        self.history = []
-
-    def add(self, a, b):
-        return self._record("add", a + b, a, b)
-
-    def sub(self, a, b):
-        return self._record("sub", a - b, a, b)
-
-    def mul(self, a, b):
-        return self._record("mul", a * b, a, b)
-
-    def div(self, a, b):
-        if b == 0:
-            raise CalculatorError("division by zero")
-        return self._record("div", a / b, a, b)
-
-    def _record(self, operation, result, a, b):
-        self.history.append(
-            {"op": operation, "a": a, "b": b, "result": result}
-        )
-        return result
-
-
-def parse_expression(raw):
-    """Evaluate a simple expression such as ``"2 * 3"``."""
-    tokens = (raw or "").split()
-    if len(tokens) != 3:
-        raise CalculatorError("enter two numbers and an operator")
-
-    left, operator, right = tokens
-    try:
-        a, b = float(left), float(right)
-    except ValueError as exc:
-        raise CalculatorError("operands must be numbers") from exc
-
-    calculator = Calculator()
-    operations = {
-        "+": calculator.add,
-        "-": calculator.sub,
-        "*": calculator.mul,
-        "/": calculator.div,
-    }
-    try:
-        operation = operations[operator]
-    except KeyError as exc:
-        raise CalculatorError(f"unsupported operator: {operator}") from exc
-    return operation(a, b)
-'''
-    return {
-        "id": f"local-demo-{uuid.uuid4()}",
-        "name": ToolName.REPO_WRITE.value,
-        "arguments": {
-            "path": "calculator.py",
-            "content": content,
-            "mode": "overwrite",
-        },
-    }
-
-
-def calculate_dynamic_output_budget(objective: str, ceiling: int = 2000) -> int:
-    """
-    Dynamically scale max_tokens based on task complexity while respecting budget profile ceiling:
-    - Complex refactor / architecture / system / multi-file: 1536 tokens
-    - Standard fixes, features, tests, or function additions: 1024 tokens
-    - Simple DSA / concise utility tasks (< 12 words): 512 tokens
-    """
-    obj_words = len(objective.split())
-    obj_lower = objective.lower()
-
-    if any(k in obj_lower for k in ["refactor", "system", "architecture", "multi", "suite"]) or obj_words >= 25:
-        budget = 1536
-    elif any(k in obj_lower for k in ["test", "add", "function", "fix", "implement", "feature"]) or obj_words >= 12:
-        budget = 1024
-    else:
-        budget = 512
-    return min(budget, ceiling)
-
-
-def extract_clean_code(generated_text: str) -> str:
-    """
-    Extract pure code from model generation.
-    Handles fenced code blocks and separates code from trailing conversational commentary
-    without prematurely truncating internal triple backticks (e.g. inside docstrings).
-    """
-    text = generated_text.strip()
-    if not text.startswith("```"):
-        return text
-
-    lines = text.splitlines()
-    if not lines:
-        return text
-
-    if lines[0].startswith("```"):
-        lines = lines[1:]
-
-    closing_idx = None
-    for i in range(len(lines) - 1, -1, -1):
-        if lines[i].strip() == "```" or lines[i].strip().startswith("```"):
-            closing_idx = i
-            break
-
-    if closing_idx is not None:
-        lines = lines[:closing_idx]
-
-    return "\n".join(lines).strip("\r\n")
-
-
 class RunOrchestrator:
     """
     Run Orchestrator - coordinates the complete coding task lifecycle.
@@ -276,7 +150,6 @@ class RunOrchestrator:
         self.current_step = 0
         self.current_diff: Optional[str] = None
         self.recent_tool_output: Optional[str] = None
-        self._has_successful_write = False
     
     async def create_run(
         self,
@@ -316,14 +189,7 @@ class RunOrchestrator:
         snapshot = result.scalar_one_or_none()
         
         if not snapshot:
-            snapshot = RepositorySnapshot(
-                workspace_id=workspace.id,
-                commit_hash="initial",
-                branch_name="main",
-                snapshot_path=".",
-            )
-            self.db.add(snapshot)
-            await self.db.flush()
+            raise ValueError("No repository snapshot for workspace")
         
         # Get enabled models for router
         result = await self.db.execute(
@@ -438,174 +304,60 @@ class RunOrchestrator:
         return self.run
     
     async def _execute_run(self) -> None:
-        """Main execution loop - Call Nebius AI to generate code"""
+        """Main execution loop"""
         try:
-            self.run.status = RunStatus.EXECUTING
-            self.run.current_stage = "executing"
-            await self._add_event("execution_start", "executing", "Generating code with Nebius AI...")
-            await self.db.commit()
+            # Phase 1: Task Analysis
+            await self._phase_task_analysis()
             
-            # Extract objective from task
-            objective = self.run.task_text
+            # Phase 2: Security Review
+            await self._phase_security_review()
             
-            # Optimization 4: Semantic Caching
-            # Verify workspace snapshot state and task hash to safely reuse completed results
-            cached_query = await self.db.execute(
-                select(RunResult)
-                .join(Run, RunResult.run_id == Run.id)
-                .where(
-                    Run.workspace_id == self.run.workspace_id,
-                    Run.snapshot_id == self.run.snapshot_id,
-                    Run.task_hash == self.run.task_hash,
-                    Run.status == RunStatus.COMPLETED,
-                    RunResult.final_status == FinalStatus.COMPLETED,
-                    RunResult.patch_content.is_not(None),
-                )
-                .order_by(RunResult.created_at.desc())
-            )
-            cached_run_result = cached_query.scalars().first()
-            if cached_run_result and cached_run_result.patch_content:
-                run_result = RunResult(
-                    run_id=self.run.id,
-                    patch_content=cached_run_result.patch_content,
-                    final_status=FinalStatus.COMPLETED,
-                    total_input_tokens=0,
-                    total_output_tokens=0,
-                )
-                self.db.add(run_result)
-                self.run.status = RunStatus.COMPLETED
-                self.run.current_stage = "completed"
-                self.run.input_tokens_used = 0
-                self.run.output_tokens_used = 0
-                self.run.completed_at = datetime.now()
-                await self._add_event(
-                    "cache_hit", 
-                    "completed", 
-                    "Semantic cache hit: Reused verified patch from identical run snapshot (0 model tokens)"
-                )
-                await self.db.commit()
-                return
+            # Phase 3: Planning
+            await self._phase_planning()
             
-            # Optimization 1 & 2: Context Optimizer with AST skeletonization and retrieval
-            context_block = ""
-            if self.context_optimizer and self.workspace_path:
-                try:
-                    model_obj = None
-                    if self.requested_model_key:
-                        model_res = await self.db.execute(
-                            select(ModelRegistry).where(ModelRegistry.model_id == self.requested_model_key)
-                        )
-                        model_obj = model_res.scalar_one_or_none()
-                    if not model_obj:
-                        model_res = await self.db.execute(
-                            select(ModelRegistry).where(ModelRegistry.is_enabled == True)
-                        )
-                        model_obj = model_res.scalars().first()
-                        
-                    if model_obj:
-                        ctx_pkg = self.context_optimizer.build_context(
-                            task_query=objective,
-                            model=model_obj,
-                            current_diff=self.current_diff,
-                        )
-                        if ctx_pkg.included_files:
-                            file_sections = []
-                            for f in ctx_pkg.included_files:
-                                mode_label = f" ({f.get('content_mode', 'file')})"
-                                file_sections.append(f"--- File: {f['path']}{mode_label} ---\n{f['content']}")
-                            context_block = "\n\nRepository Context:\n" + "\n\n".join(file_sections)
-                except Exception as ctx_err:
-                    print(f"Context optimizer error: {ctx_err}")
-
-            # Optimization 5: Dynamic output-token budgeting & hardened stop sequences
-            budget_ceiling = 2000
-            if getattr(self.run, "budget_profile_id", None):
-                try:
-                    bp = await self.db.get(BudgetProfile, self.run.budget_profile_id)
-                    if bp and bp.max_output_tokens:
-                        budget_ceiling = bp.max_output_tokens
-                except Exception:
-                    pass
-
-            max_output_tokens = calculate_dynamic_output_budget(objective, ceiling=budget_ceiling)
-            
-            import httpx
-            import json
-            import os
-            api_key = getattr(settings, "NEBIUS_API_KEY", "")
-            if not api_key:
-                api_key = os.environ.get("NEBIUS_API_KEY", "")
-                
-            prompt = f"You are an expert developer. The user wants you to write code for the following task:\n\n{objective}{context_block}\n\nPlease provide only the generated code, without any markdown formatting around it (no ```python). If you must explain, do it in comments within the code."
-            
-            generated_code = ""
-            input_tokens = 0
-            output_tokens = 0
-            if api_key:
-                async with httpx.AsyncClient() as client:
-                    resp = await client.post(
-                        "https://api.studio.nebius.ai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}"},
-                        json={
-                            "model": "google/gemma-3-27b-it",
-                            "messages": [{"role": "user", "content": prompt}],
-                            "temperature": 0.2,
-                            "max_tokens": max_output_tokens,
-                            "stop": ["\n\n# User:", "\n\n### Explanation", "\n\nHuman:"]
-                        },
-                        timeout=60.0
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        generated_code = data["choices"][0]["message"]["content"]
-                        usage = data.get("usage", {})
-                        input_tokens = usage.get("prompt_tokens", len(prompt) // 4)
-                        output_tokens = usage.get("completion_tokens", len(generated_code) // 4)
-                    else:
-                        generated_code = f"# Error calling Nebius API: {resp.status_code}\n# {resp.text}"
-            else:
-                generated_code = f"# No NEBIUS_API_KEY found. Mock response for: {objective}"
-            
-            # Clean markdown code block safely if present
-            generated_code = extract_clean_code(generated_code)
-            
-            # Formatting as a patch diff so the UI tab shows a relevant filename
-            obj_lower = objective.lower()
-            filename = "solution.py"
-            if "html" in obj_lower: filename = "index.html"
-            elif "javascript" in obj_lower or " js" in obj_lower or obj_lower.startswith("js"): filename = "app.js"
-            elif "calculator" in obj_lower: filename = "calculator.py"
-            elif "dsa" in obj_lower or "algorithm" in obj_lower: filename = "dsa_problem.py"
-            elif "css" in obj_lower: filename = "styles.css"
-            elif "cpp" in obj_lower or "c++" in obj_lower: filename = "solution.cpp"
-            elif "java" in obj_lower: filename = "Solution.java"
-            elif "python" in obj_lower or "py" in obj_lower: filename = "solution.py"
-            
-            patch = f"diff --git a/{filename} b/{filename}\n--- a/{filename}\n+++ b/{filename}\n@@ -0,0 +1,100 @@\n{generated_code}"
-            
-            self.run.input_tokens_used = input_tokens
-            self.run.output_tokens_used = output_tokens
-            
-            run_result = RunResult(
-                run_id=self.run.id,
-                patch_content=patch,
-                final_status=FinalStatus.COMPLETED,
-                total_input_tokens=input_tokens,
-                total_output_tokens=output_tokens,
-            )
-            self.db.add(run_result)
-            
-            # Complete the run
-            self.run.status = RunStatus.COMPLETED
-            self.run.current_stage = "completed"
-            self.run.completed_at = datetime.now()
-            await self._add_event("run_completed", "completed", "Run finished successfully")
-            await self.db.commit()
+            # Phase 4: Wait for plan acceptance (handled by API)
+            # The run stays in AWAITING_START until user calls start_execution
             
         except Exception as e:
             await self._safe_stop(f"Execution error: {str(e)}", FinalStatus.FAILED)
+    
+    async def _phase_task_analysis(self) -> None:
+        """Phase 1: Analyze task"""
+        self.run.status = RunStatus.ANALYZING
+        self.run.current_stage = "analyzing"
+        await self._add_event("task_analysis_start", "analyzing", "Analyzing task")
         
-
+        # Get repository files for security analysis
+        repo_files = self._get_repository_files()
+        
+        # Analyze task
+        analysis_result = self.task_analyzer.analyze(
+            self.run.task_text,
+            repository_structure={"files": list(repo_files.keys())},
+        )
+        
+        # Save analysis
+        task_analysis = TaskAnalysis(
+            run_id=self.run.id,
+            objective=analysis_result.objective,
+            constraints=analysis_result.constraints,
+            acceptance_tests=analysis_result.acceptance_tests,
+            risk_class=analysis_result.risk_class,
+            likely_artifacts=analysis_result.likely_artifacts,
+            proposed_capabilities=[c.value for c in analysis_result.proposed_capabilities],
+            analyzer_version=analysis_result.analyzer_version,
+        )
+        self.db.add(task_analysis)
+        
+        # Audit
+        self.audit_log.append(AuditEventType.TASK_ANALYSIS, {
+            "objective": analysis_result.objective,
+            "task_type": analysis_result.task_type.value,
+            "risk_class": analysis_result.risk_class.value,
+            "proposed_capabilities": [c.value for c in analysis_result.proposed_capabilities],
+        })
+        
+        await self._add_event("task_analysis_complete", "analyzing", "Task analysis complete")
     
     async def _phase_security_review(self) -> None:
         """Phase 2: Security gateway review"""
@@ -844,38 +596,14 @@ class RunOrchestrator:
                 idempotency_key=f"{self.run.id}-{self.run.steps_completed}",
             )
             
-            offline_tool_call = (
-                _local_demo_calculator_tool_call(self.run.task_text)
-                if budget_profile.name.casefold() == "demo"
-                else None
-            )
-            if offline_tool_call is not None:
-                await self._add_event(
-                    "offline_demo_scaffold",
-                    "model_step",
-                    "Generating a local calculator starter without a provider call.",
-                )
-                inference_response = InferenceResponse(
-                    tool_calls=[offline_tool_call],
-                    input_tokens=0,
-                    output_tokens=0,
-                    total_tokens=0,
-                    model_id="local/demo-calculator",
-                    finish_reason="tool_calls",
-                )
-            else:
-                inference_response = await self.provider_adapter.infer(inference_request)
+            inference_response = await self.provider_adapter.infer(inference_request)
             
             self.run.input_tokens_used += inference_response.input_tokens
             self.run.output_tokens_used += inference_response.output_tokens
             
             self.audit_log.append(AuditEventType.MODEL_INFERENCE, {
-                "model": inference_response.model_id or routing_decision.model.model_id,
-                "provider": (
-                    "local-demo"
-                    if offline_tool_call is not None
-                    else self.provider_adapter.provider_for(routing_decision.model.model_id)
-                ),
+                "model": routing_decision.model.model_id,
+                "provider": self.provider_adapter.provider_for(routing_decision.model.model_id),
                 "routing_reason": routing_decision.reason.value,
                 "input_tokens": inference_response.input_tokens,
                 "output_tokens": inference_response.output_tokens,
@@ -1052,9 +780,8 @@ class RunOrchestrator:
         self.recent_tool_output = f"{tool_name}: {execution.stdout[:500]}"
         
         # If repo.write, capture diff
-        if tool_name == ToolName.REPO_WRITE.value and execution.execution_status == ExecutionStatus.SUCCESS:
-            self.current_diff = self._get_workspace_diff(arguments["path"])
-            self._has_successful_write = True
+        if tool_name == ToolName.REPO_WRITE.value:
+            self.current_diff = execution.stdout
         
         # Validation
         self.run.status = RunStatus.VALIDATING
@@ -1109,7 +836,6 @@ class RunOrchestrator:
             task_constraints=constraints,
             run_id=str(self.run.id),
             step_number=self.run.steps_completed + 1,
-            patch_already_applied=self._has_successful_write,
         )
         
         # Save validation findings
@@ -1150,7 +876,7 @@ class RunOrchestrator:
                 await self._safe_stop("Validation failed, retries exhausted", FinalStatus.FAILED)
         else:
             # All critical checks passed - check if we have a patch result
-            if self.current_diff or self._has_successful_write:
+            if self.current_diff:
                 await self._complete_run(FinalStatus.COMPLETED)
             # Otherwise continue loop
     
@@ -1273,20 +999,6 @@ class RunOrchestrator:
             except Exception:
                 pass
         return files
-
-    def _get_workspace_diff(self, path: str) -> Optional[str]:
-        """Capture an applyable Git diff for a successfully written file."""
-        completed = subprocess.run(
-            ["git", "diff", "--relative", "--", path],
-            cwd=self.workspace_path,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
-        if completed.returncode != 0:
-            raise RuntimeError(f"Could not capture workspace diff: {completed.stderr.strip()}")
-        return completed.stdout or None
     
     def _build_model_messages(self, context_package: Any) -> List[Dict[str, Any]]:
         """Build messages for model inference"""

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Nexora Tool Router and Sandbox Adapter
 Typed tool schemas, validation, and sandboxed execution
 """
@@ -278,12 +278,9 @@ class ToolRouter:
         schemas = []
         for tool_name, schema in self.schemas.items():
             schemas.append({
-                "type": "function",
-                "function": {
-                    "name": tool_name.value,
-                    "description": f"Tool: {tool_name.value}",
-                    "parameters": schema,
-                }
+                "name": tool_name.value,
+                "description": f"Tool: {tool_name.value}",
+                "parameters": schema,
             })
         return schemas
 
