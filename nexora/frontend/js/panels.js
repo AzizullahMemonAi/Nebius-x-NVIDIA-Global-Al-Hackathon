@@ -717,16 +717,146 @@ const auditPanel = {
   },
 };
 
+/* ========================================================================== */
+/* Router — standalone packages/* layer                                        */
+/* ========================================================================== */
+const routerPanel = {
+  id: 'router',
+  label: 'Router',
+  icon: '⇄',
+  render(ctx) {
+    const pkg = ctx.packageRouting;
+    if (!pkg) {
+      return empty('⇄', 'Package layer not loaded', 'Reload the data to fetch /api/v1/packages/routing from the standalone packages.');
+    }
+
+    const providers = pkg.providers || [];
+    const decisions = pkg.decisions || [];
+    const nebius = providers.find((p) => p.name === 'nebius');
+    const tierMap = Object.entries(pkg.router?.tier_map || {}).map(([k, v]) => `${k} → ${v}`).join(' · ');
+
+    return `
+      <div class="admin-card">
+        <h3>Standalone packages ${tag('imported')}</h3>
+        <div class="list-rows">
+          ${(pkg.packages || []).map((p) => `
+            <div class="row-card lv-info">
+              <div class="row-head"><span class="row-title mono">${esc(p)}</span>${tag('active')}</div>
+            </div>`).join('')}
+        </div>
+        <div class="row-sub" style="margin-top:8px">
+          router <code>${esc(pkg.router?.class || '—')}</code><br>
+          tier map ${esc(tierMap || '—')}
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <h3>Provider adapters</h3>
+        <div class="list-rows">
+          ${providers.map((p) => `
+            <div class="row-card lv-${p.configured ? 'allow' : 'monitor'}">
+              <div class="row-head">
+                <span class="row-title mono">${esc(p.adapter)}</span>
+                ${tag(p.configured ? 'configured' : 'not configured')}
+              </div>
+              <div class="row-sub">
+                ${esc(p.kind)} adapter${p.base_url ? ` · <code>${esc(p.base_url)}</code>` : ''}
+                ${p.timeout_ms != null ? ` · timeout ${formatNumber(p.timeout_ms)} ms` : ''}
+              </div>
+              <div class="row-sub">models: ${esc((p.available_models || []).join(', ') || '—')}</div>
+              ${p.note ? `<div class="row-sub">${esc(p.note)}</div>` : ''}
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <h3>Tier decisions ${tag(decisions.length, 'tag-neutral')}</h3>
+        <div class="list-rows">
+          ${decisions.map((d) => `
+            <div class="row-card lv-info">
+              <div class="row-head">
+                <span class="row-title">${esc(d.task_complexity)} → ${esc(d.registry_display_name || d.registry_model_id || 'no registry row')}</span>
+                ${tag(d.provider)}
+              </div>
+              <div class="row-sub">package picked <code>${esc(d.package_model_id)}</code></div>
+              <div class="row-sub">
+                reason <code>${esc(d.routing_reason)}</code> ·
+                tier ${esc(d.package_tier || '—')} → ${esc(d.registry_tier || '—')}
+              </div>
+              ${(d.alternatives_considered || []).length
+    ? `<div class="row-sub">alternatives: ${esc(d.alternatives_considered.join(', '))}</div>`
+    : ''}
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <h3>Live adapter check</h3>
+        <div class="row-sub" style="margin-bottom:8px">
+          Sends one request through <code>packages/nebius_adapter</code> and prints the provider-neutral
+          <code>ModelResponse</code> (tokens, latency, routing reason).
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-gold" data-pkg-run="mock">Run mock completion</button>
+          <button class="btn btn-sm" data-pkg-run="nebius" ${nebius?.configured ? '' : 'disabled'}>Run Nebius completion</button>
+          <button class="btn btn-sm" data-pkg-refresh>Refresh routing</button>
+        </div>
+        <div id="pkg-complete-result" style="margin-top:10px"></div>
+      </div>`;
+  },
+  bind(root, ctx) {
+    const out = root.querySelector('#pkg-complete-result');
+
+    root.querySelectorAll('[data-pkg-run]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const provider = btn.dataset.pkgRun;
+        btn.disabled = true;
+        if (out) out.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+        try {
+          const res = await ctx.actions.completeViaPackage({
+            prompt: 'Summarise why this tier was selected, in one sentence.',
+            provider,
+            task_complexity: 'moderate',
+          });
+          if (out) {
+            out.innerHTML = `
+              <div class="admin-card" style="padding:10px">
+                ${kv([
+                  ['Provider', tag(res.provider)],
+                  ['Model used', `<code>${esc(res.model_used)}</code>`],
+                  ['Routing reason', `<code>${esc(res.routing_reason)}</code>`],
+                  ['Tokens', `${formatNumber(res.input_tokens)} in · ${formatNumber(res.output_tokens)} out · ${formatNumber(res.total_tokens)} total`],
+                  ['Latency', `${Number(res.latency_ms || 0).toFixed(1)} ms`],
+                  ['Finish reason', esc(res.finish_reason)],
+                  ['Registry row', `<code>${esc(res.routing_decision?.registry_model_id || '—')}</code>`],
+                ])}
+                ${res.content ? `<pre class="code-block" style="padding:8px;margin-top:6px;font-size:11px">${esc(res.content)}</pre>` : ''}
+              </div>`;
+          }
+        } catch (err) {
+          if (out) out.innerHTML = `<span class="tag tag-deny">${esc(err?.message || String(err))}</span>`;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    root.querySelector('[data-pkg-refresh]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        await ctx.actions.reloadPackageRouting();
+      } catch (err) {
+        if (out) out.innerHTML = `<span class="tag tag-deny">${esc(err?.message || String(err))}</span>`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  },
+};
+
 export const PANELS = [
   runsPanel,
-  planPanel,
-  policyPanel,
-  securityPanel,
-  evidencePanel,
-  patchPanel,
-  testsPanel,
-  approvalsPanel,
-  auditPanel,
 ];
 
 export const PANEL_MAP = Object.fromEntries(PANELS.map((p) => [p.id, p]));

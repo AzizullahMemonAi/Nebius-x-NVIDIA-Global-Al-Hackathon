@@ -16,6 +16,7 @@ class StateManager {
       
       // Models
       models: [],
+      packageRouting: null,
       
       // Budget profiles
       budgetProfiles: [],

@@ -17,15 +17,17 @@ from nexora.backend.config.settings import get_settings
 
 settings = get_settings()
 
-# Create async engine
-engine: AsyncEngine = create_async_engine(
-    settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    pool_pre_ping=True,
-    echo=settings.DEBUG,
-    poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
-)
+# Create async engine — pool_size/max_overflow are PostgreSQL-only
+_db_url = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+_engine_kwargs: dict = {
+    "pool_pre_ping": True,
+    "echo": settings.DEBUG,
+    "poolclass": NullPool if settings.ENVIRONMENT == "test" else None,
+}
+if _db_url.startswith("postgresql"):
+    _engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
+    _engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
+engine: AsyncEngine = create_async_engine(_db_url, **_engine_kwargs)
 
 # Session factory
 async_session_factory = async_sessionmaker(

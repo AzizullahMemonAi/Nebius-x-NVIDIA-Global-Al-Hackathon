@@ -314,7 +314,6 @@ INSERT OR IGNORE INTO workspaces (id, name, description, repository_url, reposit
 
 -- Model registry entries (candidate tiers - enabled after verification)
 INSERT OR IGNORE INTO model_registry (id, model_id, display_name, provider, tier, context_capacity, max_output_tokens, supports_tools, supports_reasoning, is_enabled, verification_date, terms_reviewed) VALUES
-('4f6209a0-c47f-4653-aa00-9a45893dfe46', 'nemotron-3-ultra', 'Nemotron 3 Ultra', 'nebius', 'ultra', 128000, 4096, 1, 1, 0, NULL, 0),
-('6f6163e3-655c-487a-9467-61d2ded37000', 'nemotron-3-super', 'Nemotron 3 Super', 'nebius', 'super', 64000, 4096, 1, 1, 0, NULL, 0),
-('ed8921f0-8139-477c-acfd-e5434e62a522', 'nemotron-3-nano', 'Nemotron 3 Nano', 'nebius', 'nano', 32000, 2048, 1, 0, 0, NULL, 0);
-
+('4f6209a0-c47f-4653-aa00-9a45893dfe46', 'deepseek-ai/DeepSeek-R1-0528', 'DeepSeek R1 0528', 'nebius', 'ultra', 128000, 4096, 1, 1, 0, NULL, 0),
+('6f6163e3-655c-487a-9467-61d2ded37000', 'meta-llama/Meta-Llama-3.1-70B-Instruct', 'Meta Llama 3.1 70B Instruct', 'nebius', 'super', 131072, 4096, 1, 0, 0, NULL, 0),
+('ed8921f0-8139-477c-acfd-e5434e62a522', 'meta-llama/Meta-Llama-3.1-8B-Instruct', 'Meta Llama 3.1 8B Instruct', 'nebius', 'nano', 131072, 2048, 1, 0, 0, NULL, 0);
